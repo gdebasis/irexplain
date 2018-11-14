@@ -6,6 +6,9 @@
 package ibm.drl.irexplanation.samplegen;
 
 import ibm.drl.irexplanation.trec.TRECQuery;
+import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -28,14 +31,18 @@ public class ExplanationUnit {
     Document sampleDoc;
     String sampleDocId;
     Query sampleQuery;
+    String docText;
     
     public ExplanationUnit(IndexReader reader,
             int docId, String simName,
-            TRECQuery query) {
+            TRECQuery query, String contentFieldName) throws Exception {
         this.reader = reader;
         this.docId = docId;
         this.sim = SimFactory.createSim(simName);
         this.query = query;
+        
+        docText = reader.document(docId).get(contentFieldName).toLowerCase();
+        
     }
     
     public static String getDocName(IndexReader reader, int docId, String idFieldName) {
@@ -71,6 +78,7 @@ public class ExplanationUnit {
     
     public IndexReader getReader() { return reader; }
     public Similarity getSimilarity() { return sim; }
+    public int getDocId() { return docId; }
     public Query getQuery() { return query.getLuceneQueryObj(); }
     public Query getSampleQuery() { return this.sampleQuery; }
     
@@ -83,6 +91,30 @@ public class ExplanationUnit {
             .append(sampleDocId)
             .append("\t");
         
+        return buff.toString();
+    }
+    
+    // Destems a word by returning the first match - a quick and dirty way
+    // to do the inverse mapping --- useful for visualization
+    String deStem(String stem) {
+        final String delims = ";,. ?!\"'";
+        Pattern p = Pattern.compile(stem);
+        Matcher m = p.matcher(docText);
+
+        if (!m.find())
+            return null;
+        
+        StringBuffer buff = new StringBuffer(m.group());
+        char ch;
+        int j = m.end();
+        int len = docText.length();
+
+        while (j < len) { 
+            ch = docText.charAt(j);
+            if (delims.indexOf(ch) >= 0) break;
+            j++;
+            buff.append(ch);
+        }
         return buff.toString();
     }
 }

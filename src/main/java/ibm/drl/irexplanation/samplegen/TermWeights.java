@@ -18,11 +18,15 @@ import org.apache.lucene.index.Term;
 public class TermWeights {
     Properties prop;
     List<TermWeight> termwts;
+    
+    boolean printStems;
     static int TERMS_IN_DOC = 200;
     
     public TermWeights(Properties prop) {
         this.prop = prop;
         termwts = new ArrayList<>(TERMS_IN_DOC);
+        
+        printStems = Boolean.parseBoolean(prop.getProperty("explanation.words.stemmed", "false"));
     }
     
     public void add(TermWeight tw) {
@@ -77,7 +81,7 @@ public class TermWeights {
     public String toString() {
         StringBuffer buff = new StringBuffer();
         for (TermWeight tw: this.getTermWeights()) {
-            buff.append(tw.term).append(" ");
+            buff.append(tw.toString(printStems)).append(" ");
         }
         if (buff.length() > 0) buff.deleteCharAt(buff.length()-1);
         return buff.toString();

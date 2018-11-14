@@ -39,10 +39,17 @@ public class PointwiseSampleGeneratorPipeline {
     FileWriter fw;
     BufferedWriter bw;
     String idFieldName;
+    String contentFieldName;
+    
+    static final String DEFAULT_PROP = "init.properties";
     
     public PointwiseSampleGeneratorPipeline(String propFile) throws Exception {
-        prop = new Properties();
+        Properties defaultProp = new Properties();
+        defaultProp.load(new FileReader(DEFAULT_PROP));
+        
+        prop = new Properties(defaultProp);
         prop.load(new FileReader(propFile));
+        
         nwanted = Integer.parseInt(prop.getProperty("analysis.numtop", "1000"));
         ntop = Integer.parseInt(prop.getProperty("explanation.numtop", "5"));
         File indexDir = new File(prop.getProperty("index"));
@@ -53,7 +60,9 @@ public class PointwiseSampleGeneratorPipeline {
         
         fw = new FileWriter(prop.getProperty("sampling.outfile", "samples/pointwise/samples.txt"));
         bw = new BufferedWriter(fw);
+        
         idFieldName = prop.getProperty("field.id");
+        contentFieldName = prop.getProperty("field.content");        
     }
 
     public void generateSamplesForQuery(TRECQuery q) throws Exception {
@@ -67,7 +76,7 @@ public class PointwiseSampleGeneratorPipeline {
         
         for (int i=0; i < ntop; i++) {
             ScoreDoc sd = topDocs.scoreDocs[i];
-            ExplanationUnit eu = new ExplanationUnit(reader, sd.doc, simName, q);
+            ExplanationUnit eu = new ExplanationUnit(reader, sd.doc, simName, q, contentFieldName);
             
             String docName = ExplanationUnit.getDocName(reader, sd.doc, idFieldName);
             
@@ -108,8 +117,8 @@ public class PointwiseSampleGeneratorPipeline {
     
     public static void main(String[] args) {
         if (args.length == 0) {
-            args = new String[1];
-            args[0] = "init.properties";
+            System.err.println("usage: java PointwiseSampleGeneratorPipeline <properties file>");
+            return;
         }
         
         try {

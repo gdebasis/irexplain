@@ -30,11 +30,12 @@ public class SamplerFactory {
     }
     
     static void init(Properties prop, ExplanationUnit explanationUnit) throws Exception {
-        samplerMap = new HashMap<>(1);
-        BaseSampleGenerator gen = getGenerator(prop, explanationUnit);
-        samplerMap.put("tfidf", new TermImportanceSampler(prop, gen, explanationUnit));
+        samplerMap = new HashMap<>(2);
         
-        // TODO: include more
+        BaseSampleGenerator gen = getGenerator(prop, explanationUnit);
+        
+        samplerMap.put("tfidf", new TermImportanceSampler(prop, gen, explanationUnit));
+        samplerMap.put("mask", new MaskingSampler(prop, gen, explanationUnit));        
     }
     
     public static BaseSampler createSample(Properties prop, ExplanationUnit explanationUnit) throws Exception {
