@@ -14,7 +14,7 @@ sampler.seed=123456
 
 query.file=data/trec/topics/topics.401-450.xml
 query.start=401
-query.end=402
+query.end=450
 
 #explanation scores are analyzed with respect to the top 1000 docs
 #which gives a local view of the index
