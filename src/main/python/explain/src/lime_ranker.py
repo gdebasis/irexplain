@@ -3,14 +3,17 @@ import lucene
 import numpy as np
 from java.io import File
 from org.apache.lucene.document import Document, Field
-from org.apache.lucene.search import IndexSearcher
+from org.apache.lucene.search import IndexSearcher, Explanation
+from org.apache.lucene.search.similarities import TFIDFSimilarity, LMJelinekMercerSimilarity;
 from org.apache.lucene.index import IndexReader,DirectoryReader,TermsEnum,Term
 from org.apache.lucene.queryparser.classic import QueryParser
 from org.apache.lucene.store import SimpleFSDirectory, FSDirectory
 from org.apache.lucene.util import Version, BytesRefIterator
 from org.apache.lucene.analysis.standard import StandardAnalyzer
+from org.apache.lucene.queryparser.flexible.standard import StandardQueryParser
 from sklearn.utils import check_random_state
 from __future__ import unicode_literals
+from or
 
 from functools import partial
 import itertools
@@ -31,7 +34,7 @@ class TextDomainMapper(explanation.DomainMapper):
         """Initializer.
 
         Args:
-            indexed_string: lime_text.IndexedString, original string
+            indexed_string: original dictionary
         """
         self.indexed_string = doc_vector
 
@@ -45,7 +48,7 @@ class TextDomainMapper(explanation.DomainMapper):
             list of tuples (word, weight) 
             examples: ('bad', 1) or ('bad_3-6-12', 1)
         """
-        exp = [(self.indexed_string.word(x[0]), x[1]) for x in exp]
+        exp = [(x[0], x[1]) for x in exp]
         return exp
 
     def visualize_instance_html(self, exp, label, div_name, exp_object_name,
@@ -60,14 +63,13 @@ class TextDomainMapper(explanation.DomainMapper):
              text: if False, return empty
              opacity: if True, fade colors according to weight
         """
+        raw_string = ' '.join(self.indexed_string.keys())
+        keys = self.indexed_string.keys()
         if not text:
             return u''
-        text = (self.indexed_string.raw_string()
-                .encode('utf-8', 'xmlcharrefreplace').decode('utf-8'))
+        text = (raw_string.encode('utf-8', 'xmlcharrefreplace').decode('utf-8'))
         text = re.sub(r'[<>&]', '|', text)
-        exp = [(self.indexed_string.word(x[0]),
-                self.indexed_string.string_position(x[0]),
-                x[1]) for x in exp]
+        exp = [(x[0], keys.index(x[0]), x[1]) for x in exp]
         all_occurrences = list(itertools.chain.from_iterable(
             [itertools.product([x[0]], x[1], [x[2]]) for x in exp]))
         all_occurrences = [(x[0], int(x[1]), x[2]) for x in all_occurrences]
@@ -124,7 +126,7 @@ class LimeRankerExplainer(object):
             '''
         self.rel_labels = relevance_labels
         lucene.initVM()
-        analyzer = StandardAnalyzer()
+        self.analyzer = StandardAnalyzer()
         indexPath = File(lucene_index_path).toPath()
         self.index_dir = FSDirectory.open(indexPath)
         self.reader = DirectoryReader.open(indexDir)
@@ -137,8 +139,8 @@ class LimeRankerExplainer(object):
                 return np.sqrt(np.exp(-(d ** 2) / kernel_width ** 2))
 
         kernel_fn = partial(kernel, kernel_width=kernel_width)
-
-        self.base = lime_base.LimeBase(kernel_fn, verbose)
+        self.base = lime_base.LimeBase(kernel_fn, verbose, \
+                                       random_state=self.random_state)
         
 
     def get_document_vector(self, document_id, id_field, text_field): 
@@ -150,14 +152,12 @@ class LimeRankerExplainer(object):
         tc_dict = {}                     # Counts of each term
         dc_dict = {}                     # Number of docs associated with each term
         tfidf_dict = {}                  # TF-IDF values of each term in the doc
-        lucene_doc_id=None
-
         # Get the document id.
-        query_parser = QueryParser(Version.LUCENE_CURRENT,id_field, analyzer)
+        query_parser = QueryParser(Version.LUCENE_CURRENT,id_field, self.analyzer)
         score_docs = self.searcher.search(parser.parse(str(document_id)),1).scoreDocs
         if len(score_docs) > 0:
             # get the tf-idf vector.
-            termVector = self.reader.getTermVector(score_docs[0].doc, field);
+            termVector = self.reader.getTermVector(score_docs[0].doc, text_field);
             termsEnumvar = termVector.iterator(None)
             termsref = BytesRefIterator.cast_(termsEnumvar)
             N_terms = 0
@@ -222,21 +222,26 @@ class LimeRankerExplainer(object):
         return np.array(vectors), distances
 
 
-    def explain_document_label(self, query_id, document_id, document_score, \
+    def explain_document_label(self, query_text, document_id, \
                                samples, samples_scores,num_features=10):
 
-        document_dict = self.get_document_vector(document_id, 'id','words')
-
+        document_dict = self.get_document_score_and_vector(document_id,\
+                                                    'id','words')
+        # TEMP FIX.
+        document_score = np.median(samples_scores)
         sample_vectors, distances = self._data_labels_distance(samples, document_dict)
-        data, yss, distances = self.__data_labels_distances(
-            indexed_string, classifier_fn, num_samples,
-            distance_metric=distance_metric)
         domain_mapper = TextDomainMapper(document_vector)
         ret_exp = explanation.Explanation(domain_mapper=domain_mapper,
-                                          class_names=self.rel_labels,
+                                          mode='regression'
+                                          class_names=None,
                                           random_state=self.random_state)
-        ret_exp.predict_proba = document_score[0]
-        for label in document_score:
+
+        ret_exp.predicted_value = document_score
+        ret_exp.min_value = min(samples_scores)
+        ret_exp.max_value = max(samples_scores)
+        labels = [0]
+
+        for label in labels:
             (ret_exp.intercept[label],
              ret_exp.local_exp[label],
              ret_exp.score, ret_exp.local_pred) = self.base.explain_instance_with_data(
@@ -244,6 +249,14 @@ class LimeRankerExplainer(object):
                  distances, document_score, num_features,
                 model_regressor=None,
                 feature_selection=self.feature_selection)
+
+  
+        ret_exp.intercept[1] = ret_exp.intercept[0]
+        ret_exp.local_exp[1] = [x for x in ret_exp.local_exp[0]]
+        ret_exp.local_exp[0] = [(i, -1 * j) for i, j in ret_exp.local_exp[1]]
+
+        
+  
         return ret_exp
 
    
