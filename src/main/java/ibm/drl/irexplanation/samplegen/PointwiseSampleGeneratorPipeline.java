@@ -75,6 +75,7 @@ public class PointwiseSampleGeneratorPipeline {
         TermWeights twts;
         
         for (int i=0; i < ntop; i++) {
+            
             ScoreDoc sd = topDocs.scoreDocs[i];
             ExplanationUnit eu = new ExplanationUnit(reader, sd.doc, simName, q, contentFieldName);
             
@@ -84,7 +85,9 @@ public class PointwiseSampleGeneratorPipeline {
                     "Generating samples for query-doc pair: (%s, %s)", q.id, docName));
             
             sampler = SamplerFactory.createSample(prop, eu);
-            
+            sampler.buildTermsInDoc();
+            inMemIndexer.resetSampleId();
+                    
             for (int j=0; j < numSamples; j++) {
                 twts = sampler.nextSample();
                 
@@ -96,6 +99,7 @@ public class PointwiseSampleGeneratorPipeline {
                 bw.write(eu.toString() + "\t" + twts.toString() + "\t" + score);
                 bw.newLine();
             }
+            
         }
         inMemIndexer.close();
     }
@@ -118,7 +122,9 @@ public class PointwiseSampleGeneratorPipeline {
     public static void main(String[] args) {
         if (args.length == 0) {
             System.err.println("usage: java PointwiseSampleGeneratorPipeline <properties file>");
-            return;
+            args = new String[1];
+            //args[0] = "pointwise.mask.properties";
+            args[0] = "pointwise.tfidf.properties";
         }
         
         try {

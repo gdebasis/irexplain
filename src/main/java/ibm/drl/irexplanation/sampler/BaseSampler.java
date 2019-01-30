@@ -35,4 +35,8 @@ public abstract class BaseSampler implements Sampler {
     
     public BaseSampleGenerator getGen() { return gen; }
     
+    public abstract void buildTermsInDoc() throws Exception;
+    
+    public void setExpUnit(ExplanationUnit expunit) { this.expunit = expunit; }
+    
 }

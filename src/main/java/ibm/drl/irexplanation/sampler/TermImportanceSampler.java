@@ -63,5 +63,11 @@ public class TermImportanceSampler extends BaseSampler {
         }
         return tw;
     }
+
+    @Override
+    public void buildTermsInDoc() throws Exception {
+        twts = gen.initTermWeights(expunit);
+        twts.weightIDFs(expunit.getReader());        
+    }
     
 }

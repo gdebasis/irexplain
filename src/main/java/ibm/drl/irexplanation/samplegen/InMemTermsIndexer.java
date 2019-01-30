@@ -37,6 +37,8 @@ public class InMemTermsIndexer extends BaseSampleGenerator {
         writer = new IndexWriter(ramdir, iwcfg);        
     }
     
+    void resetSampleId() { sampleId = 0; }
+
     IndexReader getInMemReader() throws Exception {
         inMemReader = DirectoryReader.open(writer.getDirectory());
         return inMemReader;

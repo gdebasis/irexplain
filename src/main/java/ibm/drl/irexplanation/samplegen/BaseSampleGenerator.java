@@ -18,6 +18,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.Query;
@@ -113,6 +114,8 @@ public abstract class BaseSampleGenerator {
         int tf;
         TermWeights twts = new TermWeights(prop);
         
+        //int numDocs = expunit.getReader().numDocs();
+        
         tfvector = expunit.reader.getTermVector(expunit.docId, contentFieldName);
         if (tfvector == null || tfvector.size() == 0)
             return null;
@@ -130,6 +133,8 @@ public abstract class BaseSampleGenerator {
                         expunit.deStem(termText.substring(0, termText.length()-1)) : termText;
             if (rawWord == null)
                 rawWord = termText;
+            
+            //float idf = numDocs/(float)expunit.getReader().docFreq(new Term(contentFieldName, termText));
             
             TermWeight wt = new TermWeight(rawWord, termText, tf);
             twts.add(wt);

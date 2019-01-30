@@ -41,7 +41,9 @@ public class SamplerFactory {
     public static BaseSampler createSample(Properties prop, ExplanationUnit explanationUnit) throws Exception {
         if (samplerMap == null)
             init(prop, explanationUnit);
-        return samplerMap.get(prop.getProperty("sampler.type"));
+        BaseSampler sampler = samplerMap.get(prop.getProperty("sampler.type"));
+        sampler.setExpUnit(explanationUnit);
+        return sampler;
     }
     
 }

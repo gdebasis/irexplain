@@ -31,7 +31,8 @@ public class MaskingSampler extends BaseSampler {
     int numChunks;
     byte[] chunk;
     
-    private void buildTermsInDoc() throws Exception {
+    @Override
+    public void buildTermsInDoc() throws Exception {
         int docId = expunit.getDocId();
         String contentFieldName = prop.getProperty("field.content");
         String text = expunit.getReader().document(docId).get(contentFieldName);
@@ -48,7 +49,6 @@ public class MaskingSampler extends BaseSampler {
     
     public MaskingSampler(Properties prop, BaseSampleGenerator gen, ExplanationUnit expunit) throws Exception {
         super(prop, gen, expunit);
-        buildTermsInDoc();
     }
 
     void genChunk() {
