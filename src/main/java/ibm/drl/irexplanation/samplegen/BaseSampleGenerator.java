@@ -143,7 +143,7 @@ public abstract class BaseSampleGenerator {
         return twts;
     }
     
-    float getScore(InMemTermsIndexer indexer) {
+    float getScore(InMemTermsIndexer indexer, Query q) {
         return 0;
     }
     

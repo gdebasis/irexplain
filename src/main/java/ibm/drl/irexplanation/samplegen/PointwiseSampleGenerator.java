@@ -42,13 +42,13 @@ public class PointwiseSampleGenerator extends BaseSampleGenerator {
 
     // Retrieval model score, i.e. sim(D, Q)
     @Override
-    float getScore(InMemTermsIndexer inMemIndexer) {
+    float getScore(InMemTermsIndexer inMemIndexer, Query q) {
         try {
             IndexReader inMemReader = inMemIndexer.getInMemReader();
             IndexSearcher inMemSearcher = new IndexSearcher(inMemReader);            
             inMemSearcher.setSimilarity(expunit.getSimilarity());
             
-            TopDocs topDocs = inMemSearcher.search(expunit.getSampleQuery(), 1);
+            TopDocs topDocs = inMemSearcher.search(q, 1);
             return topDocs.scoreDocs.length==0? 0 : topDocs.scoreDocs[0].score;
         }
         catch (Exception ex) {

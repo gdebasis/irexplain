@@ -63,8 +63,9 @@ public class ExplanationUnit {
         }
     }
     
-    public void setSample(String idFieldName, Document sampleDoc) {
+    public void setSample(String idFieldName, Document sampleDoc, TRECQuery q) {
         this.sampleDoc = sampleDoc;
+        this.query = q;
         
         sampleDocId = getDocName(sampleDoc, idFieldName);
         // The query for matching the exact sample contains the sample doc-id

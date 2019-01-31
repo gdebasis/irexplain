@@ -19,9 +19,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.search.highlight.QueryTermExtractor;
+import org.apache.lucene.search.highlight.WeightedTerm;
 
 /**
  *
@@ -64,6 +67,14 @@ public class PointwiseSampleGeneratorPipeline {
         idFieldName = prop.getProperty("field.id");
         contentFieldName = prop.getProperty("field.content");        
     }
+    
+    TermWeight sampleQueryTerm(TRECQuery q) {
+        Query lq = q.getLuceneQueryObj();
+        WeightedTerm[] wterms = QueryTermExtractor.getTerms(lq);
+        int randomTerm = (int)(Math.random() * wterms.length);
+        TermWeight tw = new TermWeight(wterms[randomTerm].getTerm(), wterms[randomTerm].getTerm(), 1);
+        return tw;
+    }
 
     public void generateSamplesForQuery(TRECQuery q) throws Exception {
         // Retrieving top 5 with scores
@@ -88,16 +99,22 @@ public class PointwiseSampleGeneratorPipeline {
             sampler.buildTermsInDoc();
             inMemIndexer.resetSampleId();
                     
-            for (int j=0; j < numSamples; j++) {
+            for (int j=0; j < numSamples; ) {
                 twts = sampler.nextSample();
                 
+                // To ensure non-zero scores sample one query term at random
+                // and add to this document...
+                twts.add(sampleQueryTerm(q));
+                
                 Document sampleDoc = inMemIndexer.addDocument(docName, twts);
-                eu.setSample(idFieldName, sampleDoc);
                 
-                float score = sampler.getGen().getScore(inMemIndexer);
+                eu.setSample(idFieldName, sampleDoc, q);
                 
-                bw.write(eu.toString() + "\t" + twts.toString() + "\t" + score);
+                float score = sampler.getGen().getScore(inMemIndexer, eu.getSampleQuery());
+                
+                bw.write(eu.toString() + "\t" + twts.toString() + "\t" + score + "\t" + sd.score);
                 bw.newLine();
+                j++;
             }
             
         }
