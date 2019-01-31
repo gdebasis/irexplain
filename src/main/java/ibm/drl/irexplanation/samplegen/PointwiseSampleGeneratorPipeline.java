@@ -25,6 +25,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.search.highlight.QueryTermExtractor;
 import org.apache.lucene.search.highlight.WeightedTerm;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 
 /**
  *
@@ -58,6 +59,8 @@ public class PointwiseSampleGeneratorPipeline {
         File indexDir = new File(prop.getProperty("index"));
         reader = DirectoryReader.open(FSDirectory.open(indexDir.toPath()));
         searcher = new IndexSearcher(reader);
+        
+        searcher.setSimilarity(new LMJelinekMercerSimilarity(0.6f));
         
         numSamples = Integer.parseInt(prop.getProperty("sampler.numsamples", "50"));
         
