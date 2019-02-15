@@ -1,21 +1,8 @@
 from __future__ import unicode_literals
 
 import sys
-import lucene
 import numpy as np
 import math
-
-from java.io import File
-from org.apache.lucene.document import Document, Field
-from org.apache.lucene.search import IndexSearcher, Explanation
-from org.apache.lucene.search.similarities import TFIDFSimilarity, LMJelinekMercerSimilarity;
-from org.apache.lucene.index import IndexReader,DirectoryReader,TermsEnum,Term
-from org.apache.lucene.queryparser.classic import QueryParser
-from org.apache.lucene.store import SimpleFSDirectory, FSDirectory
-from org.apache.lucene.util import Version, BytesRefIterator
-from org.apache.lucene.analysis.standard import StandardAnalyzer
-from org.apache.lucene.analysis.core import WhitespaceAnalyzer 
-from org.apache.lucene.queryparser.flexible.standard import StandardQueryParser
 from sklearn.utils import check_random_state
 from functools import partial
 import itertools
@@ -23,6 +10,7 @@ import json
 import re
 import scipy as sp
 import sklearn
+import random
 from sklearn.utils import check_random_state
 
 from . import explanation
@@ -52,7 +40,7 @@ class TextDomainMapper(explanation.DomainMapper):
             list of tuples (word, weight) 
             examples: ('bad', 1) or ('bad_3-6-12', 1)
         """
-        print(exp)
+        #print(exp)
         names = self.feature_names
         exp = [(names[x[0]], x[1]) for x in exp]
         return exp
@@ -131,13 +119,11 @@ class LimeRankerExplainer(object):
         The index is assumed to have the following structure. Each document is 
         indexed with an id and words field. 
     """
-    index_dir = None
+
     rel_labels = None
-    reader = None
-    searcher = None
 
     def __init__(self, kernel_width=None, kernel=None, verbose=False,\
-                 relevance_labels=None, lucene_index_path=None, \
+                 relevance_labels=None,\
                  random_state=None, feature_selection='auto'):
         '''
         Args:
@@ -152,7 +138,6 @@ class LimeRankerExplainer(object):
                 'forward_selection', 'lasso_path', 'none' or 'auto'.
                 See function 'explain_instance_with_data' in lime_base.py for
                 details on what each of the options does.
-            lucene_index_path: path to index documents.
             random_state: an integer or numpy.RandomState that will be used to
                 generate random numbers. If None, the random state will be
                 initialized using the internal numpy seed.
@@ -163,17 +148,11 @@ class LimeRankerExplainer(object):
 
             '''
         self.rel_labels = relevance_labels
-        lucene.initVM(classpath=lucene.CLASSPATH, vmargs=['-Djava.awt.headless=true'])
-        self.analyzer = StandardAnalyzer()
-        index_path = File(lucene_index_path).toPath()
-        self.index_dir = FSDirectory.open(index_path)
-        self.reader = DirectoryReader.open(self.index_dir)
-        self.searcher = IndexSearcher(self.reader)
         self.feature_selection = feature_selection
         self.random_state = check_random_state(random_state)
         
         if kernel_width is None:
-            kernel_width = np.sqrt(10000) * .75
+            kernel_width = np.sqrt(100) * .75
         kernel_width = float(kernel_width)
 
         if kernel is None:
@@ -186,46 +165,6 @@ class LimeRankerExplainer(object):
                                        random_state=self.random_state)
         
 
-    def get_document_vector(self, document_id, id_field, text_field): 
-
-        ''' 
-            Given a document id, fetch the tf-idf vector of the document.
-        '''
-
-        tc_dict = {}                     # Counts of each term
-        dc_dict = {}                     # Number of docs associated with each term
-        tfidf_dict = {}                  # TF-IDF values of each term in the doc
-        # Get the document id.
-        query_parser = QueryParser(id_field, WhitespaceAnalyzer() )
-        score_docs = self.searcher.search(query_parser.parse(str(document_id)),1).scoreDocs
-        if len(score_docs) > 0:
-            # get the tf-idf vector.
-            termVector = self.reader.getTermVector(score_docs[0].doc, text_field);
-            termsEnumvar = termVector.iterator()
-            termsref = BytesRefIterator.cast_(termsEnumvar)
-            N_terms = 0
-            try:
-                while (termsref.next()):
-                    termval = TermsEnum.cast_(termsref)
-                    fg = termval.term().utf8ToString()       # Term in unicode
-                    if len(fg) > 4 and not fg.isdigit():
-                        tc = termval.totalTermFreq()             # Term count in the doc
-
-                        # Number of docs having this term in the index
-                        dc = self.reader.docFreq(Term(text_field, termval.term())) 
-                        N_terms = N_terms + 1 
-                        tc_dict[fg]=tc
-                        dc_dict[fg]=dc
-            except:
-                print('error in term_dict')
-
-            # Compute TF-IDF for each term
-            for term in tc_dict:
-                tf = tc_dict[term] / N_terms
-                idf = 1 + math.log(self.reader.numDocs()/(dc_dict[term]+1)) 
-                tfidf_dict[term] = tf*idf
-
-        return tfidf_dict
 
 
     def _data_labels_distance(self, samples, tfidf_dict, distance_metric='cosine'):
@@ -264,54 +203,66 @@ class LimeRankerExplainer(object):
                     sample_vector[token_index] = base_doc_vector[token_index]
                 except Exception as ex:
                     missing_words.append(token)
-            if len(missing_words) > 0:
-                print(len(missing_words), ' missing words', missing_words,\
-                 ' from Sample', sample)
+            if len(missing_words) == len(sample):
+                print(len(missing_words), ' missing all words', missing_words,\
+                 ' from Sample')
             vectors.append(sample_vector)
 
         distances = distance_fn(sp.sparse.csr_matrix(vectors))
         return np.array(vectors), distances
 
 
-    def explain_document_label(self, document_id, \
-                               samples, samples_scores,num_features=10):
+    def explain_document_label(self, document_dict, document_score, \
+                               samples, samples_scores,num_features=10,\
+                               weights_range = None):
 
-        document_dict = self.get_document_vector(document_id,\
-                                                    'id','words')
-        print(document_dict.keys())
-        # TEMP FIX.
-        document_score = 8.3 #np.median(samples_scores)
+
+        # Normalize per query. 
+        # Explain 
+
+        #print(document_dict.keys())
+        print('Document score', document_score)
         sample_vectors, distances = self._data_labels_distance(samples, document_dict)
         domain_mapper = TextDomainMapper(document_dict)
-        ret_exp = explanation.Explanation(domain_mapper=domain_mapper,
+
+        explanations = []
+        for entry in weights_range:
+            # create an explanation object
+            ret_exp = explanation.Explanation(domain_mapper=domain_mapper,
                                           mode='regression',
                                           class_names='document_score',
                                           random_state=self.random_state)
 
-        ret_exp.predicted_value = document_score
-        ret_exp.min_value = min(samples_scores)
-        ret_exp.max_value = max(samples_scores)
-        labels = [0]
-        yss = np.array([document_score] + samples_scores)
-        yss = yss[:, np.newaxis]
-        print(distances.shape, yss.shape, sample_vectors.shape)
-        print(distances[:5])
-        print(yss)
-        print(sample_vectors[:5])
-        for label in labels:
-            (ret_exp.intercept[label],
-             ret_exp.local_exp[label],
-             ret_exp.score, ret_exp.local_pred) = self.base.explain_instance_with_data(
-                sample_vectors, yss ,\
-                 distances, label, num_features,
-                model_regressor=None,
-                feature_selection=self.feature_selection)
+            ret_exp.predicted_value = document_score
+            ret_exp.min_value = min(samples_scores)
+            ret_exp.max_value = max(samples_scores)
+            labels = [0]
+            yss = np.array([document_score] + samples_scores)
+            yss = yss[:, np.newaxis]
+            #print(distances.shape, yss.shape, sample_vectors.shape)
+            #print(distances[:5])
+            #print(yss)
+            #print(sample_vectors[:5])
+
+            weights = self.base.kernel_fn(distances, kernel_width = entry)
+
+            for label in labels:
+                (ret_exp.intercept[label],
+                ret_exp.local_exp[label],
+                ret_exp.score, ret_exp.local_pred) = self.base.explain_instance_with_data(
+                    sample_vectors, yss , weights, \
+                    distances, label, num_features,
+                    model_regressor=None,
+                    feature_selection=self.feature_selection)
 
   
-        ret_exp.intercept[1] = ret_exp.intercept[0]
-        ret_exp.local_exp[1] = [x for x in ret_exp.local_exp[0]]
-        ret_exp.local_exp[0] = [(i, -1 * j) for i, j in ret_exp.local_exp[1]]
-        return ret_exp
+            ret_exp.intercept[1] = ret_exp.intercept[0]
+            ret_exp.local_exp[1] = [x for x in ret_exp.local_exp[0]]
+            ret_exp.local_exp[0] = [(i, -1 * j) for i, j in ret_exp.local_exp[1]]
+
+            explanations.append(ret_exp)
+
+        return explanations
 
    
     

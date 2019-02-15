@@ -295,7 +295,7 @@ class Explanation(object):
                 exp.show(%s, %d, exp_div);
                 ''' % (exp, label)
         else:
-            print(self.as_list())
+            #print(self.as_list())
             exp = jsonize(self.as_list())
             exp_js += u'''
             exp_div = top_div.append('div').classed('lime explanation', true);
