@@ -218,6 +218,7 @@ def compute_metrics(samples, qrel_object, query_vectors, kernel_range, \
                     document_vectors, ranker_explanation, top_k, name):
     consistancy_scores=[]
     divergence_scores=[]
+    explanation_vectors = []
     query_count = {}
     for index_key, sample_list in samples.items():
         # index_key --> query_id, doc_id, doc_score
@@ -249,9 +250,33 @@ def compute_metrics(samples, qrel_object, query_vectors, kernel_range, \
         ranked_lists = []
         for eobject, kernel in zip(explain_objects, kernel_range):
 
+            exp_sorted_values = sorted(eobject.local_exp[1], key = lambda x: x[1],\
+                                                              reverse=True)
+            exp_vector = explanation_to_vector(word_list, exp_sorted_values,\
+			                                   document_dict)
+           #eobject.save_to_file(name+'_'+doc_id+'_'+query_id+'_'+str(top_k)+'_'+str(kernel)+'.png')
+
+            term_vector = []
+            for exp_score, exp_doc_tfidf in zip(exp_sorted_values, exp_vector.items()):
+            	
+            	term_vector.append((exp_doc_tfidf[0], exp_score[1], exp_doc_tfidf[1]))
+
+            explanation_vectors.append({'doc_id':doc_id,'top_feat':top_k,\
+            						  'kernel':kernel, \
+                                      'doc_rel':doc_label ,\
+                                      'doc_score': index_key[2],\
+                                   	  'intercept':eobject.intercept[1], 
+                                   	  'escore':eobject.score, \
+                                   	  'local_pred': eobject.local_pred,\
+                                      'term_vector': term_vector,\
+                                      'query_id': query_id} )
+
+
+            '''
             ranked_lists.append([entry[0] for entry in sorted(eobject.local_exp[1],\
                                                               key = lambda x: x[1],\
                                                               reverse=True)])
+
             ne, pe, dfr = divergence_from_truth(query_vectors[query_id][1],\
                                                 query_vectors[query_id][0],\
                                                 explanation_to_vector(word_list,\
@@ -270,14 +295,15 @@ def compute_metrics(samples, qrel_object, query_vectors, kernel_range, \
                                       'cdfr': cdfr, 'cne': cne, 'cpe':cpe, \
                                       'query_id': query_id} )
 
-                
+            '''
+        '''
         consistancy_scores.append({'doc_id':doc_id, 'query_id': query_id,\
                                    'ktau': consistancy(ranked_lists),\
                                    'doc_score':index_key[2],'top_feat':top_k,\
                                    'doc_rel':doc_label})
 
-     
-
+     	'''
+    '''
     cfrane = pd.DataFrame(consistancy_scores)
     cfrane.to_csv(name+'_kendal_score'+str(top_k)+'.csv', sep=',', \
                   index=False)
@@ -286,6 +312,10 @@ def compute_metrics(samples, qrel_object, query_vectors, kernel_range, \
     dfrane.to_csv(name+'_divergence_scores'+str(top_k)+'.csv', sep=',', \
                   index=False)
 
+	'''
+    efrane = pd.DataFrame(explanation_vectors)
+    efrane.to_csv(name+'_explanation_scores'+str(top_k)+'.csv', sep=',', \
+                  index=False)
 
 
 def compute_metrics_with_uniform_kernel(sample_size, niter, all_samples, \
@@ -414,10 +444,13 @@ def main():
 	#samples_path = '/Users/manishav/workspace/irexplain/samples/pointwise/uniform/mask/samples_mask.ws.10.0.1.txt'
 	dir_path='/Users/manishav/workspace/irexplain/'
 
-	sample_files=[dir_path+'samples/200_sized_samples/samples_0.3_tfidf.txt']
+	sample_files=[
+	dir_path+'samples/pointwise/uniform/tfidf/samples_0.3_tfidf.txt',\
+	dir_path+'samples/pointwise/uniform/tfidf/samples_0.1_tfidf.txt',\
 	#dir_path+'samples/pointwise/uniform/mask/samples_mask.ws.10.0.3.txt',\
 	#dir_path+'samples/pointwise/uniform/mask/samples_mask.ws.20.0.3.txt',\
-	#dir_path+'samples/pointwise/term_weight/samples_mask.ws.5.0.3.txt',\
+	dir_path+'samples/pointwise/term_weight/samples_mask.ws.5.0.3.txt',\
+	dir_path+'samples/pointwise/term_weight/samples_mask.ws.5.0.1.txt']
 	#dir_path+'samples/pointwise/term_weight/samples_mask.ws.10.0.3.txt',\
 	#dir_path+'samples/pointwise/term_weight/samples_mask.ws.20.0.3.txt']
 
@@ -432,19 +465,21 @@ def main():
 	                                                            searcher, reader)
 
 	#kernel=uniform_kernel,\
-	ranker_explanation = lime_ranker.LimeRankerExplainer(kernel=uniform_kernel,\
+	ranker_explanation = lime_ranker.LimeRankerExplainer(#kernel=uniform_kernel,\
 	                                      kernel_width = np.sqrt(100000) * .80,\
                                           relevance_labels=[0,1,2,3,4])
 
 
 	for ifile in sample_files:
 		print(ifile)
-		fname = ifile[ifile.rfind('_samples')+9:ifile.rfind('.')].replace('/','_')
+		#name = ifile[ifile.rfind('_samples')+9:ifile.rfind('.')].replace('/','_')
+		fname = ifile[ifile.rfind('samples')+8:ifile.rfind('.')].replace('/','_')
+		
 		samples = load_samples(ifile)
 		doc_vectors = compute_document_vectors(samples, searcher, reader)
 		#kernel_range = np.outer(np.logspace(-2,5,num=8,base=10,dtype='float'),\
 		#				 	np.linspace(0.1, 1.0, 10)).ravel()
-		kernel_range = [1]
+		kernel_range = [1,5,10,20,50,100, 200, 500, 1000,5000,10000,20000, 50000, 100000]
 		'''
 	
 		for entry in [10,20]:
@@ -455,16 +490,16 @@ def main():
 			p.start()
 		'''
 		for entry in [10,15,20,25,30]:
-			#compute_metrics(samples, qrel_object, query_vectors, \
-		    #                              kernel_range, doc_vectors, \
-		    #                              ranker_explanation, entry,\
-		    #                              fname)	
-
+			compute_metrics(samples, qrel_object, query_vectors, \
+		                                 kernel_range, doc_vectors, \
+		                                  ranker_explanation, entry,\
+		                                  fname)	
+		'''
 			compute_metrics_with_uniform_kernel(70, 30, samples, qrel_object,\
 										 query_vectors, doc_vectors, \
 		                                 ranker_explanation, entry,\
 		                                 fname)	
-	
+		'''
 	
 
 if __name__ == '__main__':
