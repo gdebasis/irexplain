@@ -40,7 +40,7 @@ explanation.type=pointwise
 #sampler types
 #allowable types -- tfidf/mask
 sampler.type=mask
-sampler.numsamples=50
+sampler.numsamples=200
 
 sampling.outfile=samples/pointwise/samples_mask.ws.${windowsize}.${visprob}.txt
 

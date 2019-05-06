@@ -35,7 +35,7 @@ explanation.type=pointwise
 #importance_sampling_tfidf
 sampler.type=tfidf
 #sampler.type=mask
-sampler.numsamples=50
+sampler.numsamples=500
 
 sampling.outfile=samples/pointwise/samples_tfidf.txt
 
