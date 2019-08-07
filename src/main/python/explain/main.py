@@ -76,7 +76,7 @@ def load_samples(file_path):
 				index_key = (split[0],doc_id, float(split[5]))
 				if index_key not in samples_list:
 					samples_list[index_key] = []
-				samples_list[index_key].append({ 'sample_id':split[1], \
+				samples_list[index_key].append({'sample_id':split[1], \
 											   'sample_text': tokenize_text(split[3].strip()),\
 											   'sample_score': float(split[4])})
 			except:

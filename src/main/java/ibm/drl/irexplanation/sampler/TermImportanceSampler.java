@@ -50,10 +50,11 @@ public class TermImportanceSampler extends BaseSampler {
         float start = 0, wt, end;
         float x = rand.nextFloat();
         int n = tweights.size();
-        
+            
         for (int i=0; i < n; i++) {
             tw = tweights.get(i);
-            wt = tw.getWt();
+            //wt = tw.getWt();
+            wt = (float)1.0 / (float)n;
             end = start + wt;
             
             if (start <= x && x < end)  // interval lengths determine probability
